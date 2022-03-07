@@ -1,6 +1,7 @@
 from asyncio import Task, tasks
 from dis import dis
 from distutils.command.config import LANG_EXT
+from lib2to3.pytree import Node
 from termios import IEXTEN
 import numpy as np
 import math
@@ -18,11 +19,12 @@ class vehiclenode:
         self.location = location
 class mecnode:
     ######################### --初始化-- ###################################
-    def __init__(self,numofVehicle,capacityofCPU,location,vehicleLocation,vehicleCPU,vehicleTaskprofit,lamda = 2) -> None:
+    def __init__(self,numofVehicle,capacityofCPU,location,vehicleLocation,vehicleCPU,vehicleTaskprofit,lamda = 2,sublamda = None) -> None:
 
         ## 系统参量
         self.numofVehicle = numofVehicle
         self.lamda = lamda
+        self.sublamda = sublamda
 
         ## 信道参量
         self.L0 = 61094
@@ -33,9 +35,12 @@ class mecnode:
         self.alpha = 2.75
         #######
 
-        ## 代价参量
+        ## 训练参量
         # self.cSpec = np.zeros(self.numofVehicle)
         self.cCpu = 0
+        self.index = 0
+        self.idletime = 0
+        self.idletime_last = 0
         # # self.cMem = np.zeros(self.numofVehicle)
         # #######
 
@@ -68,6 +73,9 @@ class mecnode:
     #########################  --控制系统-- ##################################
     def setCCPU(self,cCPU):
         self.cCpu = cCPU
+    def reset(self):
+        self.idletime = 0
+        self.index = 0
      ########################################################################
     #########################  --计算效用-- ##################################
 
@@ -84,18 +92,25 @@ class mecnode:
         
 
         # 定义一个处理队列，保存正在运行的程序以及正在等待的程序
-        arrivingInterval = 1/self.lamda
+        # arrivingInterval = self.lamda
         computeQueue = []  ## 储存了每个任务的等待时间
-        idletime = 0
+        idletime = self.idletime
         for index in range(self.numofVehicle):
             taskload = action[index] * self.vehicle[index].taskprofit[1]
+            arriveTime = self.index+self.sublamda[index]
             # taskloadSum += taskload
-            if(idletime <= index*arrivingInterval): ## 说明是空闲的
-                # idletime =  + index*arrivingInterval
+            if(idletime <= arriveTime): ## 说明是空闲的
+                idletime = taskload/self.CapacityofCPU + arriveTime ## 更新计算完这个任务的时间
                 computeQueue.append(taskload/self.CapacityofCPU)  ## 空闲的等待时间直接算就行了
+                
             else:
-                idletime = taskload/self.CapacityofCPU + idletime       ## 不是空闲的，就在当前idle的基础上累积
-                computeQueue.append(idletime - index*arrivingInterval)  ## 然后减去任务过来的时间
+                idletime = taskload/self.CapacityofCPU + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
+                computeQueue.append(idletime - arriveTime)  ## 然后减去任务过来的时间
+
+        ## 更新系统的idletime_last和index_last
+        self.idletime_last = idletime
+
+
         utility1 = [] 
         utility2 = []
         for index in range(self.numofVehicle):
