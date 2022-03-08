@@ -1,10 +1,13 @@
 from asyncio import Task, tasks
+from ctypes import util
 from dis import dis
 from distutils.command.config import LANG_EXT
 from lib2to3.pytree import Node
 from termios import IEXTEN
 import numpy as np
 import math
+
+from pyparsing import sgl_quoted_string
 
 
 
@@ -46,6 +49,9 @@ class mecnode:
 
         ## MEC能力参量
         self.CapacityofCPU = capacityofCPU  #NOTE：这里是MEC网络的控制器的主频
+        self.CapacityofCPUs = np.zeros(numofVehicle) ## 为每一个车辆分配主频
+        for index in range(self.numofVehicle):
+            self.CapacityofCPUs[index] = self.CapacityofCPU
         ########
 
         ## 初始化车辆
@@ -71,11 +77,22 @@ class mecnode:
 
 
     #########################  --控制系统-- ##################################
+    ## 调整计算资源分配策略,
+    ## var 表示决策计算方差
+    def computeRsourceScheduling(self,utility,var):
+        slight = 0.4
+        utility = np.array(utility)
+        utility = utility - utility.mean()
+        self.CapacityofCPUs = self.CapacityofCPUs + (utility*slight)
+        print("调整之后的CoC为:{}".format(self.CapacityofCPUs))
+
     def setCCPU(self,cCPU):
         self.cCpu = cCPU
     def reset(self):
         self.idletime = 0
         self.index = 0
+        # for index in range(self.numofVehicle):
+        #     self.CapacityofCPUs[index] = self.CapacityofCPU
      ########################################################################
     #########################  --计算效用-- ##################################
 
@@ -100,11 +117,11 @@ class mecnode:
             arriveTime = self.index+self.sublamda[index]
             # taskloadSum += taskload
             if(idletime <= arriveTime): ## 说明是空闲的
-                idletime = taskload/self.CapacityofCPU + arriveTime ## 更新计算完这个任务的时间
-                computeQueue.append(taskload/self.CapacityofCPU)  ## 空闲的等待时间直接算就行了
+                idletime = taskload/self.CapacityofCPUs[index] + arriveTime ## 更新计算完这个任务的时间
+                computeQueue.append(taskload/self.CapacityofCPUs[index])  ## 空闲的等待时间直接算就行了
                 
             else:
-                idletime = taskload/self.CapacityofCPU + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
+                idletime = taskload/self.CapacityofCPUs[index] + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
                 computeQueue.append(idletime - arriveTime)  ## 然后减去任务过来的时间
 
         ## 更新系统的idletime_last和index_last

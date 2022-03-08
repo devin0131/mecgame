@@ -20,7 +20,7 @@ vehicleTmax = [2.2,2.64,4.4,1.8,3.3,0.98]
 # T_Best:1,1.2,2,1,1.5,0.7
 vehicleTaskprofit = [(10,1,2.2),(8,1.5,2.64),(10,2,4.4),(5,2,1.8),(10,1.5,3.3),(7,1,0.98)]  
 vehicleFavourateTime = [0.7,0.84,1.4,0.8,1.05,0.63]  ## 这个不是车辆最喜欢的，这个就是best*0.7
-
+wantedVar = 0.3 # 想要的方差
 
 ### TODO:考虑再分别定义系统希望每个任务计算的时间间隔(这里注意是  时间间隔 )
 expectTime = np.zeros(numofVehicle)
@@ -42,13 +42,13 @@ for veh in range(numofVehicle):
 
 
 cCPU = 0
-iteratorTime = 50
+utilityArray = []
 priceUtilityArray = []
 actualUtilityArray = []
 UtilitySumArray = []
 actionArray = []
-# for iter in range(iteratorTime):
-cCPUCandicata = np.linspace(0,1,30)
+utilityVarArray = []
+cCPUCandicata = np.linspace(0,1,100)
 mec.reset()
 actioninThisIter = np.zeros(numofVehicle)
 for iter,cCPU in enumerate(cCPUCandicata):
@@ -70,16 +70,24 @@ for iter,cCPU in enumerate(cCPUCandicata):
         
     
     priceUtility,actualUtility = mec.utility(actionPast)
+    ## 计算方差
+    utilityVar = np.var(np.array(actualUtility))
+    utilityVarArray.append(utilityVar)
     ### 采取各节点所认为的最佳决策之后,更新系统的idletime值和index值(index可以代表经历了多少个时刻)
     mec.idletime = mec.idletime_last
     mec.index += mec.lamda
     ### 保存实验数据
+    utilityArray.append(actualUtility)
     actionArray.append(deepcopy(actioninThisIter))
     UtilitySumArray.append(sum(actualUtility))
     priceUtilityArray.append(np.var(np.array(priceUtility)))
     actualUtilityArray.append(np.var(np.array(actualUtility)))
-    print("第{}次迭代，三者的效用为：{},效用方差为：{}".format(iter,actualUtility,np.var(np.array(actualUtility))))
+    print("第{}次迭代，三者的效用为：{},效用方差为：{}".format(iter,actualUtility,utilityVar))
+
     print("此时运行到第{}s,当前的idletime={}".format(mec.index,mec.idletime))
+    ### 如果效用方差很大，就需要调整计算资源分配
+    if(utilityVar > wantedVar):
+        mec.computeRsourceScheduling(actualUtility,utilityVar)
     print("--------------------------------------------------------------------------------")
     mec.setCCPU(cCPU)
 
@@ -95,8 +103,8 @@ fig, ax = plt.subplots() # 创建图实例
 
 
 
-ax.plot(cCPUCandicata, np.array(actionArray)) # 作y1 = x 图，并标记此线名为linear
-# ax.plot(cCPUCandicata, actualUtilityArray, label='actual') #作y2 = x^2 图，并标记此线名为quadratic
+ax.plot(cCPUCandicata, np.array(utilityArray)) # 作y1 = x 图，并标记此线名为linear
+ax.plot(cCPUCandicata, utilityVarArray, "*-",label='actual') #作y2 = x^2 图，并标记此线名为quadratic
 
 ax.set_xlabel('x label') #设置x轴名称 x label
 ax.set_ylabel('y label') #设置y轴名称 y label
