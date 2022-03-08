@@ -37,7 +37,7 @@ class mecnode:
 
         ## 训练参量
         # self.cSpec = np.zeros(self.numofVehicle)
-        self.cCpu = 0
+        self.cCpu = np.zeros(self.numofVehicle)
         self.index = 0
         self.idletime = 0
         self.idletime_last = 0
@@ -71,8 +71,9 @@ class mecnode:
 
 
     #########################  --控制系统-- ##################################
-    def setCCPU(self,cCPU):
-        self.cCpu = cCPU
+    def setCCPU(self,utility):
+        utility = np.array(utility) - np.array(utility).mean()
+        self.cCpu += utility
     def reset(self):
         self.idletime = 0
         self.index = 0
@@ -114,10 +115,13 @@ class mecnode:
         utility1 = [] 
         utility2 = []
         for index in range(self.numofVehicle):
+
+            computeCost = self.cCpu[index] * computeQueue[index]
+
             localtime = self.vehicle[index].taskprofit[1]*(self.vehicle[index].taskprofit[0] - action[index])/self.vehicle[index].CapacityofCPU
             mectime = computeQueue[index]+(action[index]/self.R_v_v_(self.subBand,self.distance(self.vehicle[index].location,self.location)))
-            computeCost = self.cCpu * computeQueue[index]
-            utility1.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime) - computeCost)
+            
+            utility1.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime+computeCost))
             utility2.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime))
         return utility1,utility2
         

@@ -20,7 +20,7 @@ vehicleTmax = [2.2,2.64,4.4,1.8,3.3,0.98]
 # T_Best:1,1.2,2,1,1.5,0.7
 vehicleTaskprofit = [(10,1,2.2),(8,1.5,2.64),(10,2,4.4),(5,2,1.8),(10,1.5,3.3),(7,1,0.98)]  
 vehicleFavourateTime = [0.7,0.84,1.4,0.8,1.05,0.63]  ## 这个不是车辆最喜欢的，这个就是best*0.7
-
+wantedVar = 0.5
 
 ### TODO:考虑再分别定义系统希望每个任务计算的时间间隔(这里注意是  时间间隔 )
 expectTime = np.zeros(numofVehicle)
@@ -41,7 +41,6 @@ for veh in range(numofVehicle):
     actionPast.append(0.05*vehicleTaskprofit[veh][0])
 
 
-cCPU = 0
 iteratorTime = 50
 priceUtilityArray = []
 actualUtilityArray = []
@@ -59,8 +58,8 @@ for iter,cCPU in enumerate(cCPUCandicata):
         for action in actionCandicate:
             actionPast[veh] = action*vehicleTaskprofit[veh][0]
             # u,_ = mec.utility(actionPast)
-            _,u = mec.utility(actionPast)
-            uveh.append(u)
+            pu,u = mec.utility(actionPast)
+            uveh.append(pu)
         uveh = np.array(uveh)[:,veh]
         uvehMaxIndex = uveh.argmax()
         actioninThisIter[veh] = actionCandicate[uvehMaxIndex]
@@ -81,7 +80,8 @@ for iter,cCPU in enumerate(cCPUCandicata):
     print("第{}次迭代，三者的效用为：{},效用方差为：{}".format(iter,actualUtility,np.var(np.array(actualUtility))))
     print("此时运行到第{}s,当前的idletime={}".format(mec.index,mec.idletime))
     print("--------------------------------------------------------------------------------")
-    mec.setCCPU(cCPU)
+    if(np.var(np.arrat(actualUtility)) > wantedVar and iter%4==0):
+        mec.setCCPU(cCPU)
 
 # print("result:{}".format(result))
 
