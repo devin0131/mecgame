@@ -38,7 +38,7 @@ class mecnode:
         ## 训练参量
         # self.cSpec = np.zeros(self.numofVehicle)
         self.cCpu = np.zeros(self.numofVehicle)
-        self.index = 0
+        self.timeNow = 0
         self.idletime = 0
         self.idletime_last = 0
         # # self.cMem = np.zeros(self.numofVehicle)
@@ -86,7 +86,7 @@ class mecnode:
     ## params:action 保存卸载量
     ## output:utility1 价钱效用
     ##        utility2 实际效用
-    def utility(self,action):
+    def utility(self,action,showlog = False):
         #### ##
         # 理论计算        
         # for index in range(self.numofVehicle):
@@ -100,14 +100,20 @@ class mecnode:
         idletime = self.idletime
         for index in range(self.numofVehicle):
             taskload = action[index] * self.vehicle[index].taskprofit[1]
-            arriveTime = self.index+self.sublamda[index]
+            computeTime = taskload / self.CapacityofCPU
+            arriveTime = self.timeNow+self.sublamda[index]
             # taskloadSum += taskload
             if(idletime <= arriveTime): ## 说明是空闲的
-                idletime = taskload/self.CapacityofCPU + arriveTime ## 更新计算完这个任务的时间
-                computeQueue.append(taskload/self.CapacityofCPU)  ## 空闲的等待时间直接算就行了
+                if showlog:
+                    print("第{}个车辆到达的时候，服务器是空闲的\n".format(index),end="\n\n")
+                idletime = computeTime + arriveTime ## 更新计算完这个任务的时间
+                computeQueue.append(computeTime)  ## 空闲的等待时间直接算就行了
             else:
-                idletime = taskload/self.CapacityofCPU + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
+                if showlog:
+                    print("第{}个车辆到达的时候，服务器不是空闲的\nidletime:{},arriveTime:{},computeTime:{}".format(index,idletime,arriveTime,computeTime),end="\n\n")
+                idletime = computeTime + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
                 computeQueue.append(idletime - arriveTime)  ## 然后减去任务过来的时间
+
 
         ## 更新系统的idletime_last和index_last
         self.idletime_last = idletime
@@ -120,7 +126,8 @@ class mecnode:
             computeCost = self.cCpu[index] * computeQueue[index]
 
             localtime = self.vehicle[index].taskprofit[1]*(self.vehicle[index].taskprofit[0] - action[index])/self.vehicle[index].CapacityofCPU
-            mectime = computeQueue[index]+(action[index]/self.R_v_v_(self.subBand,self.distance(self.vehicle[index].location,self.location)))
+            # mectime = computeQueue[index]+(action[index]/self.R_v_v_(self.subBand,self.distance(self.vehicle[index].location,self.location)))
+            mectime = computeQueue[index]
             utility1.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime+computeCost))
             utility2.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime))
         return utility1,utility2
