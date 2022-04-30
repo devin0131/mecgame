@@ -72,8 +72,11 @@ class mecnode:
 
     #########################  --控制系统-- ##################################
     def setCCPU(self,utility):
+        slight = 0.2
         utility = np.array(utility) - np.array(utility).mean()
-        self.cCpu += utility
+        utility -= utility.min()
+        # utility = np.array(utility)
+        self.cCpu += utility*slight
     def reset(self):
         self.idletime = 0
         self.index = 0
@@ -90,7 +93,6 @@ class mecnode:
         #     taskCapa += action[index] * self.vehicle.taskprofit[1]
         # t_sum = taskCapa/self.CapacityofCPU # 总处理时延
         # _t_com = t_sum/self.numofVehicle ## 平均处理时延
-        
 
         # 定义一个处理队列，保存正在运行的程序以及正在等待的程序
         # arrivingInterval = self.lamda
@@ -103,7 +105,6 @@ class mecnode:
             if(idletime <= arriveTime): ## 说明是空闲的
                 idletime = taskload/self.CapacityofCPU + arriveTime ## 更新计算完这个任务的时间
                 computeQueue.append(taskload/self.CapacityofCPU)  ## 空闲的等待时间直接算就行了
-                
             else:
                 idletime = taskload/self.CapacityofCPU + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
                 computeQueue.append(idletime - arriveTime)  ## 然后减去任务过来的时间
@@ -112,7 +113,7 @@ class mecnode:
         self.idletime_last = idletime
 
 
-        utility1 = [] 
+        utility1 = []
         utility2 = []
         for index in range(self.numofVehicle):
 
@@ -120,10 +121,8 @@ class mecnode:
 
             localtime = self.vehicle[index].taskprofit[1]*(self.vehicle[index].taskprofit[0] - action[index])/self.vehicle[index].CapacityofCPU
             mectime = computeQueue[index]+(action[index]/self.R_v_v_(self.subBand,self.distance(self.vehicle[index].location,self.location)))
-            
             utility1.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime+computeCost))
             utility2.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime))
         return utility1,utility2
-        
      ########################################################################
 
