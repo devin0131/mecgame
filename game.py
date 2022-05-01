@@ -18,6 +18,8 @@ rcParams['font.family'] = 'Times New Roman'
 # vehicleTaskprofit = [(10,1,5),(10,2,10),(10,1.5,7.5),(10,1,5),(10,2,10),(10,1.5,7.5)]
 numofVehicle = 6
 mecCPU = 8
+discountFactor = 0.85
+phi = -0.1
 # 车辆的位置坐标
 vehicleLocation = [(0,0.001),(0,0.001),(0,0.001),(0,0.001),(0,0.001),(0,0.001)]
 # 车辆的CPU算力
@@ -27,25 +29,28 @@ vehicleTaskprofit = [[7,1,1.5],[10,1,3],[8,1.5,3],[10,1.5,4],[6,2,2.5],[10,2,5]]
 # 不考虑排队时延下的最佳计算时间
 vehicleBestTime = np.zeros(numofVehicle)
 vehicleDiscountTime = np.zeros(numofVehicle)  ## 这个不是车辆最喜欢的，这个就是best*0.7
+vehicleArriveTime = np.zeros(numofVehicle)
+vehicleCost = np.zeros((numofVehicle,2))
+lamda = 0 ## 所有任务到达间隔
+
 for vec in range(numofVehicle):
     ## 每个任务最喜欢的处理时延
     vehicleBestTime[vec] = ( vehicleTaskprofit[vec][0]*vehicleTaskprofit[vec][1] ) / (vehicleCPU[vec] + mecCPU)
-    ## 任务的时延约束比Best 多出来一点儿
-    vehicleTaskprofit[vec][2] = vehicleBestTime[vec] * 1.7
     ### DiscountTime 这个变量可以用来做车辆的到达时间 后边的乘数是服务器不想按找最佳卸载
-    vehicleDiscountTime[vec] = vehicleBestTime[vec] * 0.85
+    vehicleDiscountTime[vec] = vehicleBestTime[vec] * discountFactor
+    ## 任务的时延约束比Best 多出来一点儿
+    vehicleTaskprofit[vec][2] = vehicleBestTime[vec]  * (1 + (((1 - discountFactor) * mecCPU) / vehicleCPU[vec]))
+    ## 每个任务在一个时隙内的到达时间
+    vehicleArriveTime[vec] =  ( vehicleDiscountTime[vec-1] + vehicleArriveTime[vec-1] )  if vec > 0 else 0
+    ## 所有任务的到达时间
+    lamda += vehicleDiscountTime[vec]
+    vehicleCost[vec][0] = (vehicleTaskprofit[vec][0] * vehicleTaskprofit[vec][1] / vehicleCPU[vec]) - (vehicleDiscountTime[vec]*(1+(mecCPU/vehicleCPU[vec])))
+    vehicleCost[vec][1] = 1 + (phi * (1 + (mecCPU / vehicleCPU[vec])))
 
 
-""" 这里有一个需要考虑的问题是
-    每个任务的到达时间:
-    每个任务的起始到达时间:
-"""
-vehicleArriveTime = np.zeros(numofVehicle)
-lamda = 0 ## 所有任务到达间隔
-for veh in range(numofVehicle):
-    vehicleArriveTime[veh] =  ( vehicleDiscountTime[veh-1] + vehicleArriveTime[veh-1] )  if veh > 0 else 0
-    lamda += vehicleDiscountTime[veh]
-### ☝同时定义了 到达率 和 各任务起始时间
+
+
+
 
 """ wantedVar是为了定义想要的所有车辆方差的最大值
 """
@@ -60,7 +65,7 @@ print("vehicleDiscountTime:{}".format(vehicleDiscountTime))
 print("vehicleArriveTime:{}".format(vehicleArriveTime))
 
 
-mec = env.mecnode(numofVehicle,mecCPU,(0,0),vehicleLocation=vehicleLocation,vehicleCPU=vehicleCPU,vehicleTaskprofit=vehicleTaskprofit,lamda=lamda,sublamda = vehicleArriveTime)
+mec = env.mecnode(numofVehicle,mecCPU,(0,0),vehicleLocation=vehicleLocation,vehicleCPU=vehicleCPU,vehicleTaskprofit=vehicleTaskprofit,lamda=lamda,sublamda = vehicleArriveTime,vehicleCost = vehicleCost)
 
 actionCandicate = np.linspace(0,1,500)
 
@@ -70,7 +75,7 @@ for veh in range(numofVehicle):
     actionPast.append(0.05*vehicleTaskprofit[veh][0])
 
 
-iteratorTime = 30
+iteratorTime = 20
 priceUtilityArray = []
 actualUtilityArray = []
 UtilitySumArray = []
@@ -94,7 +99,7 @@ for iter,cCPU in enumerate(cCPUCandicata):
         uveh = np.array(uveh)[:,veh]
         uvehMaxIndex = uveh.argmax()
         actioninThisIter[veh] = actionCandicate[uvehMaxIndex]
-        print("第{}次迭代，车辆{}的效用:最佳决策：{}\n".format(iter,veh,uvehMaxIndex,uveh))
+        print("第{}次迭代，车辆{}的效用:最佳决策：{}".format(iter,veh,uvehMaxIndex,uveh))
         actionPast[veh] = actionCandicate[uvehMaxIndex]*vehicleTaskprofit[veh][0]
 
     ### 采取各节点所认为的最佳决策之后,更新系统的idletime值和index值(index可以代表经历了多少个时刻)
@@ -112,10 +117,10 @@ for iter,cCPU in enumerate(cCPUCandicata):
     print("--------------------------------------------------------------------------------")
     ## 判定条件
     if(np.var(np.array(actualUtility)) > wantedVar and iter>10):
-        mec.setCCPU(actualUtility)
-        # pass
+        ## mec.setCCPU2(actualUtility)
+        mec.setCCPU3(True)
     else:
-        print("不用set了")
+        print("no set")
 
 # print("result:{}".format(result))
 

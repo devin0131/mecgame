@@ -19,7 +19,7 @@ class vehiclenode:
         self.location = location
 class mecnode:
     ######################### --初始化-- ###################################
-    def __init__(self,numofVehicle,capacityofCPU,location,vehicleLocation,vehicleCPU,vehicleTaskprofit,lamda = 2,sublamda = None) -> None:
+    def __init__(self,numofVehicle,capacityofCPU,location,vehicleLocation,vehicleCPU,vehicleTaskprofit,lamda = 2,sublamda = None, vehicleCost = None) -> None:
 
         ## 系统参量
         self.numofVehicle = numofVehicle
@@ -41,6 +41,7 @@ class mecnode:
         self.timeNow = 0
         self.idletime = 0
         self.idletime_last = 0
+        self.useComputeCost = False
         # # self.cMem = np.zeros(self.numofVehicle)
         # #######
 
@@ -52,9 +53,11 @@ class mecnode:
         self.vehicleLocation = vehicleLocation
         self.vehicleCPU = vehicleCPU
         self.vehicleTaskprofit = vehicleTaskprofit
+        self.vehicleCost = vehicleCost
         self.vehicle = []
         for index in range(self.numofVehicle):
             self.vehicle.append(vehiclenode(self.vehicleCPU[index],location=self.vehicleLocation[index],taskprofit = self.vehicleTaskprofit[index]))
+
 
         # self.lastAction = []
      #######################################################################
@@ -75,8 +78,15 @@ class mecnode:
         slight = 0.2
         utility = np.array(utility) - np.array(utility).mean()
         utility -= utility.min()
-        # utility = np.array(utility)
         self.cCpu += utility*slight
+        print("设置每个车CPU的价格:{}\n".format(self.cCpu))
+    def setCCPU2(self,utility):
+        utility = np.array(utility) - np.array(utility).mean()
+        utility /= (utility.max() - utility.min())
+        self.cCpu = 0.75 * np.log(utility  + 1)
+        print("设置每个车CPU的价格:{}\n".format(self.cCpu))
+    def setCCPU3(self, useornot):
+        self.useComputeCost = useornot
     def reset(self):
         self.idletime = 0
         self.index = 0
@@ -87,49 +97,49 @@ class mecnode:
     ## output:utility1 价钱效用
     ##        utility2 实际效用
     def utility(self,action,showlog = False):
-        #### ##
-        # 理论计算        
-        # for index in range(self.numofVehicle):
-        #     taskCapa += action[index] * self.vehicle.taskprofit[1]
-        # t_sum = taskCapa/self.CapacityofCPU # 总处理时延
-        # _t_com = t_sum/self.numofVehicle ## 平均处理时延
-
-        # 定义一个处理队列，保存正在运行的程序以及正在等待的程序
-        # arrivingInterval = self.lamda
-        computeQueue = []  ## 储存了每个任务的等待时间
+        completeQueue = []  ## 储存了每个任务的等待时间  包括排队的时间和计算的时间
+        computeQueue = []
+        waitQueue = []
+        costQueue = []
+        utility1 = []
+        utility2 = []
         idletime = self.idletime
         for index in range(self.numofVehicle):
             taskload = action[index] * self.vehicle[index].taskprofit[1]
             computeTime = taskload / self.CapacityofCPU
+            computeQueue.append(computeTime)
             arriveTime = self.timeNow+self.sublamda[index]
             # taskloadSum += taskload
             if(idletime <= arriveTime): ## 说明是空闲的
+                waitQueue.append(0)
                 if showlog:
                     print("第{}个车辆到达的时候，服务器是空闲的\n".format(index),end="\n\n")
                 idletime = computeTime + arriveTime ## 更新计算完这个任务的时间
-                computeQueue.append(computeTime)  ## 空闲的等待时间直接算就行了
+                completeQueue.append(computeTime)  ## 空闲的等待时间直接算就行了
             else:
+                waitQueue.append(idletime - arriveTime)
                 if showlog:
                     print("第{}个车辆到达的时候，服务器不是空闲的\nidletime:{},arriveTime:{},computeTime:{}".format(index,idletime,arriveTime,computeTime),end="\n\n")
                 idletime = computeTime + idletime       ## 不是空闲的，就在当前idle的基础上累积，也是计算完这个任务的时间
-                computeQueue.append(idletime - arriveTime)  ## 然后减去任务过来的时间
-
-
-        ## 更新系统的idletime_last和index_last
+                completeQueue.append(idletime - arriveTime)  ## 然后减去任务过来的时间
         self.idletime_last = idletime
-
-
-        utility1 = []
-        utility2 = []
         for index in range(self.numofVehicle):
-
-            computeCost = self.cCpu[index] * computeQueue[index]
-
+            ## computeCost = self.cCpu[index] * completeQueue[index]
+            if self.useComputeCost:
+                computeCost = self.vehicleCost[index][0] - ( self.vehicleCost[index][1] * waitQueue[index] )
+            else:
+                computeCost = 0
+            costQueue.append(computeCost)
             localtime = self.vehicle[index].taskprofit[1]*(self.vehicle[index].taskprofit[0] - action[index])/self.vehicle[index].CapacityofCPU
-            # mectime = computeQueue[index]+(action[index]/self.R_v_v_(self.subBand,self.distance(self.vehicle[index].location,self.location)))
-            mectime = computeQueue[index]
+            mectime = completeQueue[index]
             utility1.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime+computeCost))
+            ## utility1.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime) - computeCost)
             utility2.append(self.vehicle[index].taskprofit[2] - max(localtime,mectime))
+        if showlog:
+            print("utility1:\n{}".format(utility1))
+            print("utility2:\n{}".format(utility2))
+            print("costQueue:\n{}".format(costQueue))
+            print("waitQueue:\n{}".format(waitQueue),end='\n\n')
         return utility1,utility2
      ########################################################################
 
