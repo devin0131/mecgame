@@ -1,3 +1,4 @@
+import pickle
 from code import interact
 from copy import deepcopy
 from ctypes import util
@@ -11,7 +12,9 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 from matplotlib import rcParams
-rcParams['font.family'] = 'Times New Roman'
+import matplotlib.font_manager as fm
+## rcParams['font.family'] = 'STZhongsong,Times News Roman'
+font = fm.FontProperties(fname='/usr/share/fonts/custom/KaiTi_GB2312.ttf')
 # numofVehicle = 6
 # vehicleLocation = [(0,0.001),(0,0.001),(0,0.001),(0,0.001),(0,0.001),(0,0.001)]
 # vehicleCPU = [2,2,2,2,2,2]
@@ -76,11 +79,16 @@ for veh in range(numofVehicle):
 
 
 iteratorTime = 20
-priceUtilityArray = []
-actualUtilityArray = []
+priceSumUtilityArray = []
+actualVarUtilityArray = []
 UtilitySumArray = []
 actionArray = []
-utilityArray = []
+actualUtilityArray = []
+priceUtilityArray = []
+costQueueArray = []
+waitQueueArray = []
+
+
 # utilityVarArray = []
 # for iter in range(iteratorTime):
 
@@ -93,8 +101,7 @@ for iter,cCPU in enumerate(cCPUCandicata):
         uveh = []
         for action in actionCandicate:
             actionPast[veh] = action*vehicleTaskprofit[veh][0]
-            # u,_ = mec.utility(actionPast)
-            pu,u = mec.utility(actionPast)
+            pu,u,_,_ = mec.utility(actionPast)
             uveh.append(pu)
         uveh = np.array(uveh)[:,veh]
         uvehMaxIndex = uveh.argmax()
@@ -103,60 +110,144 @@ for iter,cCPU in enumerate(cCPUCandicata):
         actionPast[veh] = actionCandicate[uvehMaxIndex]*vehicleTaskprofit[veh][0]
 
     ### 采取各节点所认为的最佳决策之后,更新系统的idletime值和index值(index可以代表经历了多少个时刻)
-    priceUtility, actualUtility = mec.utility(actionPast,showlog = True)
+    priceUtility, actualUtility,costQueue,waitQueue = mec.utility(actionPast,showlog = True)
     mec.idletime = mec.idletime_last
     mec.timeNow += mec.lamda
     ### 保存实验数据
-    utilityArray.append(actualUtility)
+    costQueueArray.append(costQueue)
+    waitQueueArray.append(waitQueue)
+    priceUtilityArray.append(priceUtility)
+    actualUtilityArray.append(actualUtility)
     actionArray.append(deepcopy(actioninThisIter))
     UtilitySumArray.append(sum(actualUtility))
-    priceUtilityArray.append(np.var(np.array(priceUtility)))
-    actualUtilityArray.append(np.var(np.array(actualUtility)))
+    priceSumUtilityArray.append(np.var(np.array(priceUtility)))
+    actualVarUtilityArray.append(np.var(np.array(actualUtility)))
     print("第{}次迭代，\n效用为：\n{},\n效用方差为：\n{}".format(iter,actualUtility,np.var(np.array(actualUtility))))
     print("此时运行到第{}s,当前的idletime={}".format(mec.timeNow,mec.idletime))
     print("--------------------------------------------------------------------------------")
     ## 判定条件
-    if(np.var(np.array(actualUtility)) > wantedVar and iter>10):
+    if(np.var(np.array(actualUtility)) > wantedVar and iter>-1):
         ## mec.setCCPU2(actualUtility)
         mec.setCCPU3(True)
     else:
         print("no set")
 
 # print("result:{}".format(result))
-
-
+with open("./varCo.pkl",'wb') as f:
+    pickle.dump(actualVarUtilityArray,f)
 for index,utility in enumerate(UtilitySumArray):
     UtilitySumArray[index] = UtilitySumArray[index-1] + utility if index > 0 else utility
 
 
 line_shape = ["*-","^-",".-","s-","D-","1-"]
 x = range(1,iteratorTime+1)
-legend = ["vehicle1","vehicle2","vehicle3","vehicle4","vehicle5","vehicle6"]
-for index in range(numofVehicle):
-    plt.plot(x,np.array(utilityArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=8)
-fontsize = 11
-plt.grid()
-plt.legend(fontsize=fontsize)
-plt.xticks(x,fontsize=fontsize)
-plt.yticks(fontsize=fontsize)
-plt.xlim(min(x),max(x))
-# plt.ylim(0.2,1)
-plt.xlabel("Iterator",fontsize=fontsize + 3)
-plt.ylabel("Utility",fontsize = fontsize+3)
-# plt.show()
-
+legend = ["车辆1","车辆2","车辆3","车辆4","车辆5","车辆6"]
+####################################################################################################
 plt.figure()
 for index in range(numofVehicle):
-    plt.plot(x,np.array(actionArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=8)
+    plt.plot(x,np.array(actualUtilityArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=5)
+fontsize = 9
 plt.grid()
 plt.legend(fontsize=fontsize)
 plt.xticks(x,fontsize=fontsize)
 plt.yticks(fontsize=fontsize)
-plt.xlim(min(x),max(x))
+plt.xlim(min(x),max(x[:10]))
+plt.hlines(0, 1, 20,color="black",linestyles="dashdot",linewidths=3)#横线
 # plt.ylim(0.2,1)
-plt.xlabel("Iterator",fontsize=fontsize + 3)
-plt.ylabel("Action",fontsize = fontsize+3)
-
+plt.xlabel("迭代次数",fontsize=fontsize + 3,fontproperties=font)
+plt.ylabel("效用方差",fontsize = fontsize+3,fontproperties=font)
+# plt.savefig("timeUtility2.pdf")
+# ######################### Paint utilities before 10 ##############################
+# plt.figure()
+# for index in range(numofVehicle):
+#     plt.plot(x[:10],np.array(actualUtilityArray[:10])[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=5)
+# fontsize = 9
+# plt.grid()
+# plt.legend(fontsize=fontsize)
+# plt.xticks(x[:10],fontsize=fontsize)
+# plt.yticks(fontsize=fontsize)
+# plt.xlim(min(x),max(x[:10]))
+# plt.hlines(0, 1, 20,color="black",linestyles="dashdot",linewidths=3)#横线
+# # plt.ylim(0.2,1)
+# plt.xlabel("迭代次数",fontsize=fontsize + 3,fontproperties=font)
+# plt.ylabel("时间效用",fontsize = fontsize+3,fontproperties=font)
+# plt.savefig("timeUtilityNoCo.pdf")
+# # plt.savefig("timeUtility2.pdf")
+# #################################################################################
+# #################################################################################
+# plt.figure()
+# for index in range(numofVehicle):
+#     plt.plot(x,np.array(actualUtilityArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=5)
+# fontsize = 9
+# plt.grid()
+# plt.legend(fontsize=fontsize)
+# plt.xticks(x,fontsize=fontsize)
+# plt.yticks(fontsize=fontsize)
+# plt.xlim(min(x),max(x))
+# plt.hlines(0, 1, 20,color="black",linestyles="dashdot",linewidths=3)#横线
+# # plt.ylim(0.2,1)
+# plt.xlabel("迭代次数",fontsize=fontsize + 3,fontproperties=font)
+# plt.ylabel("时间效用",fontsize = fontsize+3,fontproperties=font)
+# # plt.savefig("timeUtility2.pdf")
+# #################################################################################
+# #################################################################################
+# plt.figure()
+# for index in range(numofVehicle):
+#     plt.plot(x,np.array(actionArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=8)
+# plt.grid()
+# plt.legend(fontsize=fontsize)
+# plt.xticks(x,fontsize=fontsize)
+# plt.yticks(fontsize=fontsize)
+# plt.xlim(min(x),max(x))
+# # plt.ylim(0.2,1)
+# plt.xlabel("迭代次数",fontsize=fontsize + 3)
+# plt.ylabel("策略",fontsize = fontsize+3)
+# # plt.savefig("action.pdf",format="pdf")
+# #################################################################################
+# #################################################################################
+# plt.figure()
+# for index in range(numofVehicle):
+#     plt.plot(x,np.array(costQueueArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=8)
+# plt.grid()
+# plt.legend(fontsize=fontsize)
+# plt.xticks(x,fontsize=fontsize)
+# plt.yticks(fontsize=fontsize)
+# plt.xlim(min(x),max(x))
+# # plt.ylim(0.2,1)
+# plt.xlabel("迭代次数",fontsize=fontsize + 3)
+# plt.ylabel("代价因子",fontsize = fontsize+3)
+# # plt.savefig("cost.pdf",format="pdf")
+# #################################################################################
+# #################################################################################
+# plt.figure()
+# for index in range(numofVehicle):
+#     plt.plot(x,np.array(waitQueueArray)[:,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=8)
+# plt.grid()
+# plt.legend(fontsize=fontsize)
+# plt.xticks(x,fontsize=fontsize)
+# plt.yticks(fontsize=fontsize)
+# plt.xlim(min(x),max(x))
+# # plt.ylim(0.2,1)
+# plt.xlabel("迭代次数",fontsize=fontsize + 3)
+# plt.ylabel("排队时间",fontsize = fontsize+3)
+# # plt.savefig("queueTime.pdf",format="pdf")
+# #################################################################################
+# #################################################################################
+# plt.figure()
+# for index in range(numofVehicle):
+#     plt.plot(x[:10],np.array(actualUtilityArray)[:10,index],line_shape[index],label=legend[index],linewidth=1.3,markersize=5)
+# fontsize = 9
+# plt.grid()
+# plt.legend(fontsize=fontsize)
+# plt.xticks(x[:10],fontsize=fontsize)
+# plt.yticks(fontsize=fontsize)
+# plt.xlim(min(x),max(x[:10]))
+# plt.hlines(0, 1, 20,color="black",linestyles="dashdot",linewidths=3)#横线
+# # plt.ylim(0.2,1)
+# plt.xlabel("迭代次数",fontsize=fontsize + 3)
+# plt.ylabel("时间效用",fontsize = fontsize+3)
+# # plt.savefig("timeUtility1.pdf",format="pdf")
+# #################################################################################
 plt.show() #图形可视化
 
 

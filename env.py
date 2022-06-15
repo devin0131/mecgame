@@ -140,6 +140,6 @@ class mecnode:
             print("utility2:\n{}".format(utility2))
             print("costQueue:\n{}".format(costQueue))
             print("waitQueue:\n{}".format(waitQueue),end='\n\n')
-        return utility1,utility2
+        return utility1,utility2,costQueue,waitQueue
      ########################################################################
 
